@@ -45,14 +45,14 @@ while True:
         distance = tof.get_distance()
         if (distance > 20000):
             motor.forward()
-            print ( %d cm, %d, %d" % ((distance/10), count, "Masih Aman"))
+            print ("%d cm, %d, %d" % ((distance/10), count, "Masih Aman"))
         if (distance < 10000):
             motor.forward()
-            print( %d cm, %d, %d" % ((distance/10), count, "Benda Mendekat")
+            print("%d cm, %d, %d" % ((distance/10), count, "Benda Mendekat"))
         if (distance < 5000):
             motor.stop()
-            print( %d cm, %d, %d" % ((distance/10), count, "Tabrakan akan terjadi")
-            GPIO.cleanup()
+            print("%d cm, %d, %d" % ((distance/10), count, "Tabrakan akan terjadi"))
+            # GPIO.cleanup()
 
 if __name__ == '__main__':     # Program start from here
     setup()
