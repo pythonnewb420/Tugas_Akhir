@@ -1,18 +1,17 @@
-#!/usr/bin/env ptyhon
+#!/usr/bin/env ptyhon3
+# import Motor
+
+
 from threading import Thread, Lock
-from time import sleep
 import TFLite_detection_webcam
+from time import sleep
+import time
 import VL53L0X
-import Motor
 
-
-# Global variable
+# Create a VL53L0X object
 tof = VL53L0X.VL53L0X()
-distance = tof.get_distance()
-mutex = Lock()
-model_dir = coco_ssd_mobilenet_v1
+#mutex = Lock()
 
-# Define a function for the thread
 def ml():
    # Create object from ObjectDetection
    detector = ObjectDetection()
@@ -22,34 +21,32 @@ def ml():
     print(f'ml: {is_object_exist} {distance}')
     sleep(3)
 
+# Start ranging
 def lidar():
-  global distance
-  # looping
+  tof.start_ranging(VL53L0X.VL53L0X_BETTER_ACCURACY_MODE)
+  timing = tof.get_timing()
+  if (timing < 20000):
+      timing = 20000
+  print ("Timing %d ms" % (timing/1000))
+
   while True:
-    mutex.acquire()
-    distance_object = distance
-    mutex.release()
-    is_obstacle = distance < 0.3
-    print(f'lidar : {distance} {is_obstacle}')
-    # kontrol: perlu informasi distance
-    if is_object_exist and distance < 600:
-      motor.stop()  # <-- condition to control motor
-    if is_object_exist and distance < 1000:
-      motor.forward()
-    if is_object_exist and distance < 2000:
-      motor.forward()
-    sleep(1)
-  
+      distance = tof.get_distance()
+      if (distance > 10):
+          print ("%d cm %d" % ( (distance/10), "Tidak Aman"))
+
+      time.sleep(timing/1000000.00)
+
 # Create two threads as follows
 tf_object = tflite.TFLite()
 tf_object.run()
 tflite.run_outside()
 
 try:
-  t1 = Thread( target = ml, args=(model_dir) )
+  t1 = Thread(target = ml, args=())
   t2 = Thread(target = lidar, args=())
   t1.start()
   t2.start()
+
 except Exception as e:
   print ("Error: unable to start thread")
   print(e)
@@ -60,5 +57,3 @@ if __name__ == '__main__':     # Program start from here
         loop()
     except KeyboardInterrupt:
         destroy()
-
-
