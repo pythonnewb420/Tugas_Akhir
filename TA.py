@@ -1,4 +1,3 @@
-#!/usr/bin/env ptyhon3
 # import Motor
 
 
