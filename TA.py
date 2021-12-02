@@ -36,9 +36,9 @@ def lidar():
       time.sleep(timing/1000000.00)
 
 # Create two threads as follows
-tf_object = tflite.TFLite()
-tf_object.run()
-tflite.run_outside()
+#tf_object = tflite.TFLite()
+#tf_object.run()
+#tflite.run_outside()
 
 try:
   t1 = Thread(target = ml, args=())
