@@ -1,0 +1,7 @@
+cd /home/pi/Projects/Python/tflite
+
+source tflite-env/bin/activate
+
+cd /home/pi/Projects/Python/tflite/object_detection/VL53L0X_rasp_python/python
+
+python3 -m TA.py --modeldir=coco_ssd_mobilenet_v1
