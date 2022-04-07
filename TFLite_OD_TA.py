@@ -9,12 +9,23 @@ from threading import Thread
 import importlib.util
 import VL53L0X
 from gpiozero import Motor
+import RPi.GPIO as GPIO
+from time import sleep
 
 #Create sensor and actuator object
 tof = VL53L0X.VL53L0X() #LiDAR
-#main_motor = Motor(GPIOForward,GPIOBackward) #Motor Control
 
-tof.start_ranging(VL53L0X.VL53L0X_BETTER_ACCURACY_MODE)
+#actuator setup
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(37, GPIO.OUT) #servo
+GPIO.setup(13, GPIO.OUT) #motor
+
+servo = GPIO.PWM(37, 50)
+motor = GPIO.PWM(13, 50)
+motor.start(0)
+servo.start(0)
+
+tof.start_ranging(VL53L0X.VL53L0X_BEST_ACCURACY_MODE)
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
@@ -183,7 +194,7 @@ while True:
     scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
 
     #Get distance measured by LiDAR
-    distance_lidar = tof.get_distance()
+    distance_lidar = tof.get_distance()/10
     
     # Loop over all detections and draw detection box if confidence is above minimum threshold
     for i in range(len(scores)):
@@ -218,7 +229,7 @@ while True:
     cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
     
     #Draw LiDAR Distance in corner of frame
-    cv2.putText(frame,'Distance: {0:.2f}'.format(distance_lidar),(950, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
+    cv2.putText(frame,'Distance: {0:.2f} cm'.format(distance_lidar),(950, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
     # All the results have been drawn on the frame, so it's time to display it.
     cv2.imshow('Object detector', frame)
 
@@ -226,11 +237,24 @@ while True:
     t2 = cv2.getTickCount()
     time1 = (t2-t1)/freq
     frame_rate_calc= 1/time1
+    
+    #actuator action
+    motor.ChangeDutyCycle(8)
+    servo.ChangeDutyCycle(7.5)
+    if distance_lidar < 150:
+        servo.ChangeDutyCycle(8.5)
+        motor.ChangeDutyCycle(6)
+        time.sleep(5)
+        motor.stop()
+        servo.stop()
 
     # Press 'q' to quit
     if cv2.waitKey(1) == ord('q'):
         break
 
 # Clean up
+motor.stop()
+servo.stop()
+GPIO.cleanup()
 cv2.destroyAllWindows()
 videostream.stop()
