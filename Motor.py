@@ -1,39 +1,17 @@
 import RPi.GPIO as GPIO
-from time import sleep
+from time import sleep, time
 
-# Pins for Motor Driver Inputs 
-Motor1A = 24
-Motor1B = 23
-Motor1E = 25
- 
-def setup():
-	GPIO.setmode(GPIO.BCM)				# GPIO Numbering
-	GPIO.setup(Motor1A,GPIO.OUT)  # All pins as Outputs
-	GPIO.setup(Motor1B,GPIO.OUT)
-	GPIO.setup(Motor1E,GPIO.OUT)
- 
-def loop():
-	# Going forwards
-	GPIO.output(Motor1A,GPIO.HIGH)
-	GPIO.output(Motor1B,GPIO.LOW)
-	GPIO.output(Motor1E,GPIO.HIGH)
- 
-	sleep(5)
- 	# Going backwards
-	GPIO.output(Motor1A,GPIO.LOW)
-	GPIO.output(Motor1B,GPIO.HIGH)
-	GPIO.output(Motor1E,GPIO.HIGH)
- 
-	sleep(5)
-	# Stop
-	GPIO.output(Motor1E,GPIO.LOW)
+# Pins for Motor Driver Inputs and setup
+GPIO.setmode(GPIO.BOARD) #Raspberry Pi is told that pin index is the same as with the BOARD diagram not the BCM diagram
+GPIO.setup(13, GPIO.OUT) #GPIO pin 13 is set as output signal for the motor
+motor = GPIO.PWM(13, 50)
+motor.start(0) #Motor initial state is OFF because the .start() is given 0 volts
 
-def destroy():	
-	GPIO.cleanup()
+#Speed Calibration for Brushed DC Motor using PWM and ChangeDutyCycle
+cdc = 5 #5 as in 5% of the total 100% of full PWM
+motor.ChangeDutyCycle(5)
+time.sleep(5) #motor is shut OFF after 5s usage
 
-if __name__ == '__main__':     # Program start from here
-	setup()
-	try:
-    		loop()
-  	except KeyboardInterrupt:
-		destroy()
+#command to stop the motor
+motor.stop()
+GPIO.cleanup()

@@ -1,0 +1,51 @@
+import RPi.GPIO as GPIO
+from time import sleep, time
+import tfli2c as tfl  # Import `tfli2c` module v0.0.1
+
+# Pins for Driver Inputs and setup
+GPIO.setmode(GPIO.BOARD) #Raspberry Pi is told that pin index is the same as with the BOARD diagram not the BCM diagram
+GPIO.setup(13, GPIO.OUT) #GPIO pin 13 is set as output signal for the motor
+GPIO.setup(37, GPIO.OUT)  # GPIO pin 37 is set as output signal for the servo
+I2CAddr = 0x10   # Device address in Hex, Decimal 16
+I2CPort = 4      # I2C(4), /dev/i2c-4, GPIO 8/9, pins 24/21
+
+servo = GPIO.PWM(37, 50)
+motor = GPIO.PWM(13, 50)
+motor.start(0) #Motor initial state is OFF because the .start() is given 0 volts
+servo.start(0) #Servo initial state is OFF because the .start() is given 0 volts
+#Speed and anhlr Calibration for PWM and ChangeDutyCycle
+cdc_motor = 5  # 5 as in 5% of the total 100% of full PWM
+cdc_Servo = 5  # Servo is set so that the rudder angle will be at MAX starboard angle
+
+#  - - -  Initalize module and device - - -
+if(tfl.begin(I2CAddr, I2CPort)):
+    print("Ready")
+else:
+    print("Not ready")
+    sys.exit()  # quit the program if not ready
+
+#  - - - -  Loop until an exception occurs  - - - - -
+while True:
+    try:
+        time.sleep(0.05)   # Delay 50ms for 20Hz loop-rate
+        tfl.getData()      # Get tfl data
+        print(tfl.dist)   # display distance
+        servo.ChangeDutyCycle(cdc_Servo)
+        motor.ChangeDutyCycle(cdc_motor)
+    #
+    #  Use control-C to break loop
+    except KeyboardInterrupt:
+        print('Keyboard Interrupt')
+        #command to stop the motor
+        motor.stop()
+        servo.stop()
+        GPIO.cleanup()
+        break
+    #
+    #  Catch all other exceptions
+    except:
+        eType = sys.exc_info()[0]  # Return exception type
+        print(eType)
+        break
+print("That's all folks!")  # Say "Goodbye!"
+sys.exit()
