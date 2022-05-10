@@ -1,3 +1,18 @@
+######## Webcam Object Detection Using Tensorflow-trained Classifier #########
+#
+# Author: Evan Juras
+# Date: 10/27/19
+# Description: 
+# This program uses a TensorFlow Lite model to perform object detection on a live webcam
+# feed. It draws boxes and scores around the objects of interest in each frame from the
+# webcam. To improve FPS, the webcam object runs in a separate thread from the main program.
+# This script will work with either a Picamera or regular USB webcam.
+#
+# This code is based off the TensorFlow Lite image classification example at:
+# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/examples/python/label_image.py
+#
+# I added my own method of drawing boxes and labels using OpenCV.
+
 # Import packages
 import os
 import argparse
@@ -7,12 +22,61 @@ import sys
 import time
 from threading import Thread
 import importlib.util
+import RPi.GPIO as GPIO
+import tfmplus as tfmP   # Import the `tfmplus` module v0.1.0
+from tfmplus import *    # and command and paramter defintions
 
+#
+############################
+# LiDAR
+############################
+#
+#LiDAR Setup
+serialPort = "/dev/serial0"  # Raspberry Pi normal serial port
+serialRate = 115200          # TFMini-Plus default baud rate
+
+# - - - Set and Test serial communication - - - -
+print( "Serial port: ", end= '')
+if( tfmP.begin( serialPort, serialRate)):
+    print( "ready.")
+else:
+    print( "not ready")
+    sys.exit()   #  quit the program if serial not ready
+
+# - - - - - - - - - - - - - - - - - - - - - - - -
+time.sleep(0.5)  # allow 500ms for reset to complete
+
+# - - - - - - - - - - - - - - - - - - - - - - - -
+
+#
+############################
+# Actuator
+############################
+#
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(37, GPIO.OUT) #servo
+GPIO.setup(13, GPIO.OUT) #motor
+
+servo = GPIO.PWM(37, 50)
+motor = GPIO.PWM(13, 50)
+motor.start(0)
+servo.start(0)
+
+cdc_motor = 6.5  # 5 as in 5% of the total 100% of full PWM
+cdc_servo = 5  # Servo is set so that the rudder angle will be at MAX starboard angle
+
+
+#
+############################
+# Object Detection
+############################
+#
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
 class VideoStream:
     """Camera object that controls video streaming from the Picamera"""
-    def __init__(self,resolution=(640,480),framerate=60):
+    def __init__(self,resolution=(640,480),framerate=30):
         # Initialize the PiCamera and the camera image stream
         self.stream = cv2.VideoCapture(0)
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -135,6 +199,15 @@ floating_model = (input_details[0]['dtype'] == np.float32)
 input_mean = 127.5
 input_std = 127.5
 
+# Check output layer name to determine if this model was created with TF2 or TF1,
+# because outputs are ordered differently for TF2 and TF1 models
+outname = output_details[0]['name']
+
+if ('StatefulPartitionedCall' in outname): # This is a TF2 model
+    boxes_idx, classes_idx, scores_idx = 1, 3, 0
+else: # This is a TF1 model
+    boxes_idx, classes_idx, scores_idx = 0, 1, 2
+
 # Initialize frame rate calculation
 frame_rate_calc = 1
 freq = cv2.getTickFrequency()
@@ -142,9 +215,6 @@ freq = cv2.getTickFrequency()
 # Initialize video stream
 videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
 time.sleep(1)
-
-# Create window
-cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
@@ -170,10 +240,9 @@ while True:
     interpreter.invoke()
 
     # Retrieve detection results
-    boxes = interpreter.get_tensor(output_details[0]['index'])[0] # Bounding box coordinates of detected objects
-    classes = interpreter.get_tensor(output_details[1]['index'])[0] # Class index of detected objects
-    scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
-    #num = interpreter.get_tensor(output_details[3]['index'])[0]  # Total number of detected objects (inaccurate and not needed)
+    boxes = interpreter.get_tensor(output_details[boxes_idx]['index'])[0] # Bounding box coordinates of detected objects
+    classes = interpreter.get_tensor(output_details[classes_idx]['index'])[0] # Class index of detected objects
+    scores = interpreter.get_tensor(output_details[scores_idx]['index'])[0] # Confidence of detected objects
 
     # Loop over all detections and draw detection box if confidence is above minimum threshold
     for i in range(len(scores)):
@@ -187,7 +256,7 @@ while True:
             xmax = int(min(imW,(boxes[i][3] * imW)))
             
             cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
-            
+
             # Draw label
             object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
             label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
@@ -196,17 +265,12 @@ while True:
             cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
             cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
 
-            # Draw circle in center
-            xcenter = xmin + (int(round((xmax - xmin) / 2)))
-            ycenter = ymin + (int(round((ymax - ymin) / 2)))
-            cv2.circle(frame, (xcenter, ycenter), 5, (0,0,255), thickness=-1)
-
-            # Print info
-            print('Object ' + str(i) + ': ' + object_name + ' at (' + str(xcenter) + ', ' + str(ycenter) + ')')
-
     # Draw framerate in corner of frame
     cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
-
+    
+    #Draw LiDAR Distance in corner of frame
+    cv2.putText(frame,'Distance: {0:.2f} cm'.format(tfmP.dist),(950, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
+    
     # All the results have been drawn on the frame, so it's time to display it.
     cv2.imshow('Object detector', frame)
 
@@ -214,6 +278,16 @@ while True:
     t2 = cv2.getTickCount()
     time1 = (t2-t1)/freq
     frame_rate_calc= 1/time1
+    
+    #actuator action
+    motor.ChangeDutyCycle(cdc_motor)
+    servo.ChangeDutyCycle(7.5)
+    if tfmP.dist < 120:
+        servo.ChangeDutyCycle(cdc_servo)
+        motor.ChangeDutyCycle(cdc_motor)
+        time.sleep(5)
+        motor.stop()
+        servo.stop()
 
     # Press 'q' to quit
     if cv2.waitKey(1) == ord('q'):
