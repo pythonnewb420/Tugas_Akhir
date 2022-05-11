@@ -1,0 +1,8 @@
+numpy==1.19.3
+opencv-contrib-python==4.1.0.25
+opencv-python==4.4.0.46
+pkg-resources==0.0.0
+pyserial==3.5
+RPi.GPIO==0.7.1
+tflite-runtime==2.5.0
+tfmplus==0.1.0
