@@ -1,49 +1,38 @@
-import time
+import serial,time
 import sys
-import tfmplus as tfmP   # Import the `tfmplus` module v0.1.0
-from tfmplus import *    # and command and paramter defintions
+#
+##########################
+# TFLuna Lidar
+##########################
+#
+ser = serial.Serial("/dev/serial0", 115200,timeout=0) # mini UART serial device
+#
+############################
+# read ToF data from TF-Luna
+############################
+#
+def read_tfluna_data():
+    while True:
+        counter = ser.in_waiting # count the number of bytes of the serial port
+        if counter > 8:
+            bytes_serial = ser.read(9) # read 9 bytes
+            ser.reset_input_buffer() # reset buffer
 
-serialPort = "/dev/serial0"  # Raspberry Pi normal serial port
-serialRate = 115200          # TFMini-Plus default baud rate
+            if bytes_serial[0] == 0x59 and bytes_serial[1] == 0x59: # check first two bytes
+                distance = bytes_serial[2] + bytes_serial[3]*256 # distance in next two bytes
+                return distance
 
-# - - - Set and Test serial communication - - - -
-print( "Serial port: ", end= '')
-if( tfmP.begin( serialPort, serialRate)):
-    print( "ready.")
-else:
-    print( "not ready")
-    sys.exit()   #  quit the program if serial not ready
-
-# - - Perform a system reset - - - - - - - -
-print( "Soft reset: ", end= '')
-if( tfmP.sendCommand( SOFT_RESET, 0)):
-    print( "passed.")
-else:
-    tfmP.printReply()
-# - - - - - - - - - - - - - - - - - - - - - - - -
-time.sleep(0.5)  # allow 500ms for reset to complete
-
+if ser.isOpen() == False:
+    ser.open() # open serial port if not open
+    
 try:
     while True:
-        time.sleep(0.05)   # Loop delay 50ms to match the 20Hz data frame rate
-        # Use the 'getData' function to get data from device
-        if( tfmP.getData()):
-            print( f" Dist:  {tfmP.dist} cm ", end= '')   # display distance
-            print( f" | ", end= '\n')
-            if tfmP.dist < 200:
-                print("ok")
-                break
-                sys.exit()
-        else:                  # If the command fails...
-          tfmP.printFrame()    # display the error and HEX data
-#
+        distance= read_tfluna_data() # read values
+        print('Distance: {0:2.2f} cm'.format(distance)) # print sample data
 except KeyboardInterrupt:
-    print( 'Keyboard Interrupt')
-#    
-except: # catch all other exceptions
-    eType = sys.exc_info()[0]  # return exception type
-    print( eType)
-#
-finally:
-    print( "That's all folks!")
-    sys.exit()                   # clean up the OS and exit
+    print('Keyboard Interrupt')
+except:
+    eType = sys.exc_info()[0]  # Return exception type
+    print(eType)
+sys.exit()
+ser.close() # close serial port
