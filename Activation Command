@@ -4,4 +4,5 @@ source tflite-env/bin/activate
 
 cd /home/pi/Projects/Python/tflite/object_detection
 
-sudo python3 -m TFLite_OD_TA.py --modeldir=coco_ssd_mobilenet_v1
+sudo python3 -m TA_CAS_OD.py --modeldir=coco_ssd_mobilenet_v1
+
