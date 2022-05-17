@@ -17,33 +17,29 @@ import serial
 ############################
 #LiDAR Setup
 ser = serial.Serial("/dev/serial0", 115200,timeout=0) # mini UART serial device
-if ser.isOpen() == False:
-    ser.open() # open serial port if not open
 # - - - - - - - - - - - - - - - - - - - - - - - -
 ############################
 # read ToF data from TF-Luna
 ############################
 #
 #funct to read lidar data
-def read_tfluna_data():
+
+if ser.isOpen() == False:
+    ser.open() # open serial port if not open
+    
+class lidar:
+    def read_tfluna_data(self):
         while True:
             counter = ser.in_waiting # count the number of bytes of the serial port
             if counter > 8:
                 bytes_serial = ser.read(9) # read 9 bytes
                 ser.reset_input_buffer() # reset buffer
-
                 if bytes_serial[0] == 0x59 and bytes_serial[1] == 0x59: # check first two bytes
                     distance = bytes_serial[2] + bytes_serial[3]*256 # distance in next two bytes
                     return distance
-class lidar:
-    def update(self):
-        # Keep looping indefinitely until the thread is stopped
-        while True:
-            distance = read_tfluna_data()
-            return distance
             
     def __init__(self):
-        distance = Thread(target=self.update,args=())
+        distance = Thread(target=self.read_tfluna_data,args=())
         distance.start()
         
 #
@@ -214,11 +210,17 @@ time.sleep(1)
 
 #initialize lidar
 dist = lidar()
-dist_data = dist.update()
-time.sleep(0.5)
-
+condition = "Forward"
+    
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
+    distance = dist.read_tfluna_data()
+    time.sleep(0.005)
+    if distance<120:
+        condition="Starboard"
+        servo.ChangeDutyCycle(cdc_servo)
+        motor.ChangeDutyCycle(cdc_motor)
+        time.sleep(5)
     # Grab frame from video stream
     frame1 = videostream.read()
 
@@ -263,21 +265,16 @@ while True:
             cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
 
     #Draw LiDAR Distance in corner of frame
-    cv2.putText(frame,'Distance: %s cm' %dist_data,(900, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
+    cv2.putText(frame,'Distance: {0:2.2f} cm'.format(distance),(900, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
     #Draw Rudder in corner of frame
-    cv2.putText(frame,'Rudder dir: forward!',(50, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
+    cv2.putText(frame,'Rudder dir: %s' %condition,(50, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
     # All the results have been drawn on the frame, so it's time to display it.
     cv2.imshow('Object detector', frame)
+    
     # Press 'q' to quit
     if cv2.waitKey(1) == ord('q'):
         break
-    
-if dist_data<120:
-    #Draw Rudder in corner of frame
-    cv2.putText(frame,'Rudder dir: to starboard!',(50, 700),cv2.FONT_HERSHEY_SIMPLEX,1,(255,0,0),2,cv2.LINE_AA)
-    servo.ChangeDutyCycle(cdc_servo)
-    motor.ChangeDutyCycle(cdc_motor)
-    time.sleep(5)
+        
 # Clean up
 motor.stop()
 servo.stop()
@@ -285,4 +282,3 @@ GPIO.cleanup()
 sys.exit()
 cv2.destroyAllWindows()
 videostream.stop()
-ser.close() # close serial port
